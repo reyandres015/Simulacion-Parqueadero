@@ -4,9 +4,10 @@
  */
 package dao;
 
-import ColaNodosDinamica.TDAColas;
 import dto.Carro;
 import java.time.LocalDateTime;
+import java.util.LinkedList;
+import java.util.Queue;
 
 /**
  *
@@ -14,8 +15,8 @@ import java.time.LocalDateTime;
  */
 public class ParkingDao {
 
-    private TDAColas llegada = new TDAColas();
-    private TDAColas llegadaRetrasados = new TDAColas();
+    private Queue<Carro> llegada = new LinkedList<>();
+    private Queue<Carro> llegadaRetrasados = new LinkedList<>();
     private final int capacidad;
 
     public ParkingDao(int capacidad) {
@@ -24,17 +25,17 @@ public class ParkingDao {
 
     public boolean entrada(LocalDateTime horaEntrada, int codigo) {
         if (llegada.size() < capacidad) {
-            return llegada.enqueue(new Carro(horaEntrada, codigo));
+            return llegada.add(new Carro(horaEntrada, codigo));
         } else {
             return false;
         }
     }
 
-    public TDAColas getLlegada() {
+    public Queue<Carro> getLlegada() {
         return llegada;
     }
 
-    public TDAColas getLlegadaRetrasados() {
+    public Queue<Carro> getLlegadaRetrasados() {
         return llegadaRetrasados;
     }
 

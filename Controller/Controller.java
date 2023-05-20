@@ -11,9 +11,7 @@ import dto.Carro;
 import java.awt.Color;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -79,67 +77,61 @@ public class Controller implements ActionListener {
     }
 
     public void simulacionSalida(int codigo) {
-        // Crear una cola temporal para almacenar los elementos que no se desencolarán
-        TDAColas colaTemporal = new TDAColas();
-        // Buscar el elemento y desencolarlo
-        while (!modelo.getLlegada().isEmpty()) {
-            Carro elemento = modelo.getLlegada().dequeue();
-            if (elemento.getCodigo() == codigo) {
-                // Elemento encontrado, no se vuelve a encolar
-                elemento.setTiempo(LocalDateTime.now());
-                JOptionPane.showMessageDialog(null, elemento.toString());
-            } else {
-                // Elemento no buscado, se vuelve a encolar en la cola temporal
-                colaTemporal.enqueue(elemento);
+        boolean validacion = modelo.getLlegada().removeIf(carro -> {
+            if (carro.getCodigo() == codigo) {
+                carro.setTiempo(LocalDateTime.now());
+                JOptionPane.showMessageDialog(null, carro.toString());
+                return true; // Se cumple la condición y se desencola el carro
             }
+            return false; // No se cumple la condición y no se desencola el carro
+        });
+
+        if (!validacion) {
+            simulacionSalida(codigo);
+        } else {
+            pintaBoxes();
         }
 
-        // Volver a encolar los elementos restantes desde la cola temporal a la cola original
-        for (int i = 0; i < colaTemporal.size(); i++) {
-            modelo.getLlegada().enqueue(colaTemporal.dequeue());
-        }
-
-        pintaBoxes();
     }
 
     public void pintaBoxes() {
-        Nodos temp = modelo.getLlegada().peekFront();
         int i = 0;
-        while (temp != null) {
-            cuadrosLlegada[i].setBackground(Color.green);
-            temp = temp.getSiguiente();
-            i++;
-        }
-        for (int j = i; j < cuadrosLlegada.length; j++) {
-            cuadrosLlegada[j].setBackground(Color.white);
-        }
-        temp = modelo.getLlegadaRetrasados().peekFront();
-        i = 0;
-        while (temp != null) {
-            cuadrosRetrasados[i].setBackground(Color.green);
-            temp = temp.getSiguiente();
-            i++;
+        Queue<Carro> llegada = modelo.getLlegada();
+        Queue<Carro> llegadaRetrasados = modelo.getLlegadaRetrasados();
+
+        for (int j = 0; j < cuadrosLlegada.length; j++) {
+            if (i < llegada.size()) {
+                cuadrosLlegada[j].setBackground(Color.green);
+                i++;
+            } else {
+                cuadrosLlegada[j].setBackground(Color.white);
+            }
         }
 
-        for (int j = i; j < cuadrosRetrasados.length; j++) {
-            cuadrosRetrasados[j].setBackground(Color.white);
+        i = 0;
+        for (int j = 0; j < cuadrosRetrasados.length; j++) {
+            if (i < llegadaRetrasados.size()) {
+                cuadrosRetrasados[j].setBackground(Color.green);
+                i++;
+            } else {
+                cuadrosRetrasados[j].setBackground(Color.white);
+            }
         }
     }
 
     public void revisarTiempoVehiculos() {
-
-        for (Vehiculo vehiculo : parqueadero) {
-            if (System.currentTimeMillis() - vehiculo.getTiempoIngreso() >= 15) {
-                vehiculosDesencolados.add(vehiculo);
+        Iterator<Carro> iterator = modelo.getLlegada().iterator();
+        while (iterator.hasNext()) {
+            Carro carro = iterator.next();
+            carro.setTiempo(LocalDateTime.now());
+            if (carro.getTiempo() >= 15) {
+                iterator.remove();
+                JOptionPane.showMessageDialog(null, "Un carro excedio el tiempo limite");
+                pintaBoxes();
+                return; // Salir del método después de desencolar el elemento encontrado
             }
         }
 
-        while (!vehiculosDesencolados.isEmpty()) {
-            Vehiculo vehiculo = vehiculosDesencolados.poll();
-            parqueadero.remove(vehiculo);
-            System.out.println("El vehículo " + vehiculo.getPlaca() + " ha superado el tiempo límite y fue desencolado.");
-        }
-        pintaBoxes();
     }
 
     @Override
