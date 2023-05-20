@@ -4,8 +4,6 @@
  */
 package Controller;
 
-import ColaNodosDinamica.Nodos;
-import ColaNodosDinamica.TDAColas;
 import dao.ParkingDao;
 import dto.Carro;
 import java.awt.Color;
@@ -24,15 +22,13 @@ import vista.UIVista;
 public class Controller implements ActionListener {
 
     Random random = new Random();
-    private UIVista vista;
+    private final UIVista vista;
     private final JPanel[] cuadrosLlegada;
     private final JPanel[] cuadrosRetrasados;
     private ParkingDao modelo;
-    private LocalDateTime horaInicioSimulacion;
     private Timer timer = new Timer();
 
     public Controller() {
-        this.horaInicioSimulacion = LocalDateTime.now();
         this.vista = new UIVista();
         this.cuadrosLlegada = new JPanel[]{vista.jPanel0, vista.jPanel1, vista.jPanel2, vista.jPanel3, vista.jPanel4, vista.jPanel5, vista.jPanel6, vista.jPanel7, vista.jPanel8, vista.jPanel9};
         this.cuadrosRetrasados = new JPanel[]{vista.jRetrasados0, vista.jRetrasados1, vista.jRetrasados2, vista.jRetrasados3, vista.jRetrasados4, vista.jRetrasados5, vista.jRetrasados6, vista.jRetrasados7, vista.jRetrasados8, vista.jRetrasados9};
@@ -40,17 +36,21 @@ public class Controller implements ActionListener {
         this.vista.IniciarBtn.addActionListener(this);
     }
 
-    public void simulacion(int tiempoEjecucion) {
+    public void simulacion(long tiempoEjecucion, long tiempoLlegada, long tiempoServicio) {
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                timer.cancel(); // Cancelar todas las tareas del temporizador, es decir finaliza la simulación.
+            }
+        }, tiempoEjecucion * 1000); // Cancelar el temporizador después de 'tiempoEjecucion' segundos
+
         timer.schedule(new TimerTask() {
             @Override
             public void run() {
                 // Encolar un nuevo carro cada 6 segundos
                 simulacionEntrada(new Carro(LocalDateTime.now(), 100 + modelo.getLlegada().size()));
-
-                // Verificar si algún carro supera los 15 segundos y moverlo a la cola de retrasados
-                revisarTiempoVehiculos();
             }
-        }, 0, 6000); // Ejecutar cada 6 segundos
+        }, 0, tiempoLlegada*1000); // Ejecutar cada 6 segundos
 
         timer.schedule(new TimerTask() {
             @Override
@@ -58,10 +58,9 @@ public class Controller implements ActionListener {
                 // Desencolar un carro aleatorio cada 15 segundos
                 if (!modelo.getLlegada().isEmpty()) {
                     simulacionSalida(random.nextInt((100 + modelo.getLlegada().size()) - 101 + 1) + 101);
-                    revisarTiempoVehiculos();
                 }
             }
-        }, 0, 15000); // Ejecutar cada 15 segundos
+        }, 0, tiempoServicio*1000); // Ejecutar cada 15 segundos
 
         timer.schedule(new TimerTask() {
             @Override
@@ -72,7 +71,9 @@ public class Controller implements ActionListener {
     }
 
     public void simulacionEntrada(Carro carro) {
-        modelo.entrada(LocalDateTime.now(), 100 + modelo.getLlegada().size());
+        if(!modelo.entrada(LocalDateTime.now(), 100 + modelo.getLlegada().size())){
+            JOptionPane.showMessageDialog(null, "Carril Lleno");
+        }
         pintaBoxes();
     }
 
@@ -85,12 +86,7 @@ public class Controller implements ActionListener {
             }
             return false; // No se cumple la condición y no se desencola el carro
         });
-
-        if (!validacion) {
-            simulacionSalida(codigo);
-        } else {
-            pintaBoxes();
-        }
+         pintaBoxes();
 
     }
 
@@ -99,22 +95,22 @@ public class Controller implements ActionListener {
         Queue<Carro> llegada = modelo.getLlegada();
         Queue<Carro> llegadaRetrasados = modelo.getLlegadaRetrasados();
 
-        for (int j = 0; j < cuadrosLlegada.length; j++) {
+        for (JPanel cuadrosLlegada1 : cuadrosLlegada) {
             if (i < llegada.size()) {
-                cuadrosLlegada[j].setBackground(Color.green);
+                cuadrosLlegada1.setBackground(Color.green);
                 i++;
             } else {
-                cuadrosLlegada[j].setBackground(Color.white);
+                cuadrosLlegada1.setBackground(Color.white);
             }
         }
 
         i = 0;
-        for (int j = 0; j < cuadrosRetrasados.length; j++) {
+        for (JPanel cuadrosRetrasado : cuadrosRetrasados) {
             if (i < llegadaRetrasados.size()) {
-                cuadrosRetrasados[j].setBackground(Color.green);
+                cuadrosRetrasado.setBackground(Color.green);
                 i++;
             } else {
-                cuadrosRetrasados[j].setBackground(Color.white);
+                cuadrosRetrasado.setBackground(Color.white);
             }
         }
     }
@@ -137,8 +133,8 @@ public class Controller implements ActionListener {
     @Override
     public void actionPerformed(ActionEvent e) {
         if (e.getSource().equals(vista.IniciarBtn)) {
-            this.modelo = new ParkingDao(Integer.parseInt(vista.capacidadField.getText()));
-            simulacion(Integer.parseInt(vista.tiempoEjecucionField.getText()));
+            this.modelo = new ParkingDao();
+            simulacion(Long.parseLong(vista.tiempoEjecucionField.getText()),Long.parseLong(vista.tiempoLlegadaField.getText()), Long.parseLong(vista.tiempoServicioField.getText()));
         }
     }
 

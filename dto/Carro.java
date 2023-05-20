@@ -13,8 +13,8 @@ import java.time.temporal.ChronoUnit;
  */
 public class Carro {
 
-    private int codigo;
-    private LocalDateTime horaEntrada;
+    private final int codigo;
+    private final LocalDateTime horaEntrada;
     private int movimientos = 0;
     private long tiempo;
     private long valor;
@@ -49,7 +49,4 @@ public class Carro {
     public String toString() {
         return "Carro{" + "codigo=" + codigo + "r" + "horaEntrada=" + horaEntrada + "r" + "movimientos=" + movimientos + "r" + "tiempo=" + tiempo + "r" + "valor= $" + valor + '}';
     }
-    
-    
-
 }

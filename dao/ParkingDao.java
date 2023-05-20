@@ -17,11 +17,7 @@ public class ParkingDao {
 
     private Queue<Carro> llegada = new LinkedList<>();
     private Queue<Carro> llegadaRetrasados = new LinkedList<>();
-    private final int capacidad;
-
-    public ParkingDao(int capacidad) {
-        this.capacidad = capacidad;
-    }
+    private int capacidad = 10;
 
     public boolean entrada(LocalDateTime horaEntrada, int codigo) {
         if (llegada.size() < capacidad) {
