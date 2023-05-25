@@ -52,10 +52,10 @@ public class Carro implements Serializable {
 
     @Override
     public String toString() {
-        return "Carro{\n" + "Codigo=" + codigo
-                + "\nHora de Entrada=" + horaEntrada.toLocalTime()
-                + "\nMovimientos=" + movimientos
-                + "\nTiempo de Parqueo=" + tiempo
-                + "\nValor a Pagar: $" + valor + '}';
+        return "Carro{ " + "Codigo=" + codigo
+                + ", Hora de Entrada=" + horaEntrada.toLocalTime()
+                + ", Movimientos=" + movimientos
+                + ", Tiempo de Parqueo=" + tiempo
+                + ", Valor a Pagar: $" + valor + '}';
     }
 }

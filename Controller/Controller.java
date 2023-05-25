@@ -13,9 +13,16 @@ import java.awt.event.ActionListener;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import javax.swing.DefaultListModel;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.ListModel;
+import javax.swing.SwingUtilities;
 import vista.UIVista;
 
 /**
@@ -34,6 +41,7 @@ public class Controller implements ActionListener {
     private LocalDateTime ultimaSalida;
     private long tiempoLlegada;
     private long tiempoServicio;
+    private List<String> notificaciones = new ArrayList<>();
 
     private LocalDateTime horaInicio;
 
@@ -62,22 +70,23 @@ public class Controller implements ActionListener {
             try {
                 Thread.sleep(tiempoEjecucion * 1000);
                 cancelarSimulacion();
-                JOptionPane.showMessageDialog(null, "Fin de la Simulacion");
-
+                mostrarMensaje("Fin de la Simulacion");
             } catch (InterruptedException e) {
                 e.printStackTrace();
+                System.out.println("Fallo Finalizacion Programa");
             }
         });
 
         llegadaThread = new Thread(() -> {
             while (!Thread.interrupted()) {
                 if (!(cronometro == 0)) {
-                    System.out.println("Entrada");
                     simulacionEntrada(new Carro(LocalDateTime.now(), 100 + modelo.getLlegada().size()));
                 }
                 try {
                     Thread.sleep(tiempoLlegada * 1000);
                 } catch (InterruptedException e) {
+                    e.printStackTrace();
+                    System.out.println("Fallo Llegada");
                     Thread.currentThread().interrupt();
                 }
             }
@@ -86,12 +95,14 @@ public class Controller implements ActionListener {
         servicioThread = new Thread(() -> {
             while (!Thread.interrupted()) {
                 if (!modelo.getLlegada().isEmpty() || !modelo.getLlegadaRetrasados().isEmpty()) {
-                    System.out.println("Salida");
                     simulacionSalida(random.nextInt((100 + modelo.getLlegada().size()) - 100 + 1) + 100);
+                    System.out.println("Salida");
                 }
                 try {
                     Thread.sleep(tiempoServicio * 1000);
                 } catch (InterruptedException e) {
+                    e.printStackTrace();
+                    System.out.println("Fallo Salida");
                     Thread.currentThread().interrupt();
                 }
             }
@@ -107,6 +118,8 @@ public class Controller implements ActionListener {
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException e) {
+                    System.out.println("Fallo Cronometro");
+                    e.printStackTrace();
                     Thread.currentThread().interrupt();
                 }
             }
@@ -125,49 +138,46 @@ public class Controller implements ActionListener {
         cronometroThread.interrupt();
     }
 
+    private void mostrarMensaje(String mensaje) {
+        SwingUtilities.invokeLater(() -> {
+            JOptionPane.showMessageDialog(null, mensaje);
+        });
+    }
+
     public void simulacionEntrada(Carro carro) {
         if (!modelo.entrada(LocalDateTime.now(), 100 + modelo.getLlegada().size())) {
             JOptionPane.showMessageDialog(null, "Carril Lleno");
         } else {
+            notificaciones.add("Entrada");
+            actualizarNotificaciones();
+
             ultimaEntrada = LocalDateTime.now();
         }
         pintaBoxes();
     }
 
     public void simulacionSalida(int codigo) {
-        Iterator<Carro> iterator = modelo.getLlegada().iterator();
-        int i = 0;
-        boolean validacion = false;
+        List<Carro> llegada = (List<Carro>) modelo.getLlegada();
+        List<Carro> llegadaRetrasados = (List<Carro>) modelo.getLlegadaRetrasados();
 
-        while (iterator.hasNext()) {
-            Carro carro = iterator.next();
-            if (carro.getCodigo() == codigo) {
-                iterator.remove();
-                seleccionarCarros(i);
-                JOptionPane.showMessageDialog(null, carro.toString());
-                pintaBoxes();
-                validacion = true;
-                ultimaSalida = LocalDateTime.now();
-                return;
-            } else {
-                carro.setMovimientos();
-                i++;
-            }
+        List<Carro> carros = Stream.concat(llegada.stream(), llegadaRetrasados.stream())
+                .filter(carro -> carro.getCodigo() == codigo)
+                .collect(Collectors.toList());
+
+        Carro carro = null;
+        if (!carros.isEmpty()) {
+            carro = carros.get(0);
+            notificaciones.add(carro.toString());
+            actualizarNotificaciones();
+            pintaBoxes();
+            ultimaSalida = LocalDateTime.now();
         }
 
-        if (!validacion) {
-            System.out.println("Entre");
-            iterator = modelo.getLlegadaRetrasados().iterator();
-            while (iterator.hasNext()) {
-                Carro carro = iterator.next();
-                if (carro.getCodigo() == codigo) {
-                    iterator.remove();
-                    JOptionPane.showMessageDialog(null, carro.toString());
-                    pintaBoxes();
-                    ultimaSalida = LocalDateTime.now();
-                    return; // Salir del método después de retirar el carro
-                }
-            }
+        // Eliminar el carro de la pila correspondiente
+        if (llegada.contains(carro)) {
+            llegada.remove(carro);
+        } else if (llegadaRetrasados.contains(carro)) {
+            llegadaRetrasados.remove(carro);
         }
     }
 
@@ -178,6 +188,11 @@ public class Controller implements ActionListener {
         vista.cuentaEntradaLabel.setText(String.valueOf(tiempoEntrada));
         vista.cuentaSalidaLabel.setText(String.valueOf(tiempoSalida));
 
+    }
+
+    public void actualizarNotificaciones() {
+        String[] not = notificaciones.toArray(new String[notificaciones.size()]);
+        vista.notificationArea.setListData(not);
     }
 
     public void pintaBoxes() {
@@ -220,14 +235,6 @@ public class Controller implements ActionListener {
                     }
                 }
             }
-        }
-    }
-
-    private void seleccionarCarros(int index) {
-        if (cuadrosLlegada.length > index) {
-            cuadrosLlegada[index].setBackground(Color.red);
-        } else if (cuadrosRetrasados.length > index) {
-            cuadrosRetrasados[index].setBackground(Color.red);
         }
     }
 
@@ -284,8 +291,7 @@ public class Controller implements ActionListener {
             if (carro.getTiempo() >= 15) {
                 iterator.remove();
                 modelo.getLlegadaRetrasados().add(carro);
-                seleccionarCarros(i);
-                JOptionPane.showMessageDialog(null, "Un carro excedio el tiempo limite");
+                notificaciones.add("Un carro excedio el tiempo limite");
                 pintaBoxes();
                 return; // Salir del método después de desencolar el elemento encontrado
             } else {
