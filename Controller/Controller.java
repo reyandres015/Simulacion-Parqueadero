@@ -13,15 +13,10 @@ import java.awt.event.ActionListener;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import javax.swing.DefaultListModel;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.ListModel;
 import javax.swing.SwingUtilities;
 import vista.UIVista;
 
@@ -95,8 +90,13 @@ public class Controller implements ActionListener {
         servicioThread = new Thread(() -> {
             while (!Thread.interrupted()) {
                 if (!modelo.getLlegada().isEmpty() || !modelo.getLlegadaRetrasados().isEmpty()) {
-                    simulacionSalida(random.nextInt((100 + modelo.getLlegada().size()) - 100 + 1) + 100);
-                    System.out.println("Salida");
+                    int codigo = random.nextInt(((modelo.getLlegada().size()) - 0 + 1)) + 0;
+                    System.out.println(codigo);
+                    if (!simulacionSalida(codigo, modelo.getLlegada())) {
+                        if(!simulacionSalida(codigo, modelo.getLlegadaRetrasados())){
+                            System.out.println("No encontrado");
+                        }
+                    }
                 }
                 try {
                     Thread.sleep(tiempoServicio * 1000);
@@ -156,29 +156,26 @@ public class Controller implements ActionListener {
         pintaBoxes();
     }
 
-    public void simulacionSalida(int codigo) {
-        List<Carro> llegada = (List<Carro>) modelo.getLlegada();
-        List<Carro> llegadaRetrasados = (List<Carro>) modelo.getLlegadaRetrasados();
-
-        List<Carro> carros = Stream.concat(llegada.stream(), llegadaRetrasados.stream())
+    public boolean simulacionSalida(int codigo, Queue<Carro> parqueo) {
+        List<Carro> carros = (parqueo.stream())
                 .filter(carro -> carro.getCodigo() == codigo)
                 .collect(Collectors.toList());
 
         Carro carro = null;
         if (!carros.isEmpty()) {
+            System.out.println("Salida");
             carro = carros.get(0);
             notificaciones.add(carro.toString());
             actualizarNotificaciones();
             pintaBoxes();
             ultimaSalida = LocalDateTime.now();
+            // Eliminar el carro de la pila correspondiente
+            parqueo.remove(carro);
+            return true;
+        } else {
+            return false;
         }
 
-        // Eliminar el carro de la pila correspondiente
-        if (llegada.contains(carro)) {
-            llegada.remove(carro);
-        } else if (llegadaRetrasados.contains(carro)) {
-            llegadaRetrasados.remove(carro);
-        }
     }
 
     public void conteoRegresivo() {
