@@ -29,6 +29,10 @@ public class Carro implements Serializable {
         this.movimientos++;
     }
 
+    public void setMovimientos(int i) {
+        this.movimientos += i;
+    }
+
     public void setTiempo(LocalDateTime horaActual) {
         this.tiempo = horaEntrada.until(horaActual, ChronoUnit.SECONDS);
         setValor();
@@ -48,6 +52,10 @@ public class Carro implements Serializable {
 
     public int getCodigo() {
         return codigo;
+    }
+
+    public long getValor() {
+        return valor;
     }
 
     @Override
