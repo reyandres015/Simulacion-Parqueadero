@@ -11,6 +11,7 @@ import java.awt.Component;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -28,8 +29,18 @@ public class Controller implements ActionListener {
     private final JPanel[] cuadrosLlegada;
     private final JPanel[] cuadrosRetrasados;
     private ParkingDao modelo;
-    private int cronometro;
-    private Timer timer = new Timer();
+    private long cronometro;
+    private LocalDateTime ultimaEntrada;
+    private LocalDateTime ultimaSalida;
+    private long tiempoLlegada;
+    private long tiempoServicio;
+
+    private LocalDateTime horaInicio;
+
+    private Thread ejecucionTotalThread;
+    private Thread llegadaThread;
+    private Thread servicioThread;
+    private Thread cronometroThread;
 
     public Controller() {
         this.vista = new UIVista();
@@ -40,47 +51,85 @@ public class Controller implements ActionListener {
     }
 
     public void simulacion(long tiempoEjecucion, long tiempoLlegada, long tiempoServicio) {
-        timer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                timer.cancel(); // Cancelar todas las tareas del temporizador, es decir finaliza la simulación.
-            }
-        }, tiempoEjecucion * 1000); // Cancelar el temporizador después de 'tiempoEjecucion' segundos
+        this.cronometro = 0;
+        this.horaInicio = LocalDateTime.now();
+        this.tiempoLlegada = tiempoLlegada;
+        this.tiempoServicio = tiempoServicio;
+        this.ultimaEntrada = LocalDateTime.now();
+        this.ultimaSalida = LocalDateTime.now();
 
-        timer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                // Encolar un nuevo carro cada 6 segundos
+        ejecucionTotalThread = new Thread(() -> {
+            try {
+                Thread.sleep(tiempoEjecucion * 1000);
+                cancelarSimulacion();
+                JOptionPane.showMessageDialog(null, "Fin de la Simulacion");
+
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        });
+
+        llegadaThread = new Thread(() -> {
+            while (!Thread.interrupted()) {
                 if (!(cronometro == 0)) {
+                    System.out.println("Entrada");
                     simulacionEntrada(new Carro(LocalDateTime.now(), 100 + modelo.getLlegada().size()));
                 }
-            }
-        }, 0, tiempoLlegada * 1000); // Ejecutar cada 6 segundos
-
-        timer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                // Desencolar un carro aleatorio cada 15 segundos
-                if (!modelo.getLlegada().isEmpty() || cronometro == 0) {
-                    simulacionSalida(random.nextInt((100 + modelo.getLlegada().size()) - 100 + 1) + 100);
+                try {
+                    Thread.sleep(tiempoLlegada * 1000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                 }
             }
-        }, 0, tiempoServicio * 1000); // Ejecutar cada 15 segundos
+        });
 
-        timer.schedule(new TimerTask() {
-            @Override
-            public void run() {
+        servicioThread = new Thread(() -> {
+            while (!Thread.interrupted()) {
+                if (!modelo.getLlegada().isEmpty() || !modelo.getLlegadaRetrasados().isEmpty()) {
+                    System.out.println("Salida");
+                    simulacionSalida(random.nextInt((100 + modelo.getLlegada().size()) - 100 + 1) + 100);
+                }
+                try {
+                    Thread.sleep(tiempoServicio * 1000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        });
+
+        cronometroThread = new Thread(() -> {
+            while (!Thread.interrupted()) {
+                conteoRegresivo();
                 revisarTiempoVehiculos();
                 setLabelTiempoVehiculos();
-                cronometro++;
+                this.cronometro = this.horaInicio.until(LocalDateTime.now(), ChronoUnit.SECONDS);
                 vista.timpoEjecucionTotalLabel.setText(String.valueOf(cronometro));
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
             }
-        }, 0, 1000); // Ejecutar cada 1 segundos
+        });
+
+        ejecucionTotalThread.start();
+        llegadaThread.start();
+        servicioThread.start();
+        cronometroThread.start();
+    }
+
+    private void cancelarSimulacion() {
+        ejecucionTotalThread.interrupt();
+        llegadaThread.interrupt();
+        servicioThread.interrupt();
+        cronometroThread.interrupt();
     }
 
     public void simulacionEntrada(Carro carro) {
         if (!modelo.entrada(LocalDateTime.now(), 100 + modelo.getLlegada().size())) {
             JOptionPane.showMessageDialog(null, "Carril Lleno");
+        } else {
+            ultimaEntrada = LocalDateTime.now();
         }
         pintaBoxes();
     }
@@ -88,6 +137,8 @@ public class Controller implements ActionListener {
     public void simulacionSalida(int codigo) {
         Iterator<Carro> iterator = modelo.getLlegada().iterator();
         int i = 0;
+        boolean validacion = false;
+
         while (iterator.hasNext()) {
             Carro carro = iterator.next();
             if (carro.getCodigo() == codigo) {
@@ -95,23 +146,38 @@ public class Controller implements ActionListener {
                 seleccionarCarros(i);
                 JOptionPane.showMessageDialog(null, carro.toString());
                 pintaBoxes();
-                return; // Salir del método después de retirar el carro
+                validacion = true;
+                ultimaSalida = LocalDateTime.now();
+                return;
             } else {
                 carro.setMovimientos();
                 i++;
             }
         }
 
-        iterator = modelo.getLlegadaRetrasados().iterator();
-        while (iterator.hasNext()) {
-            Carro carro = iterator.next();
-            if (carro.getCodigo() == codigo) {
-                iterator.remove();
-                JOptionPane.showMessageDialog(null, carro.toString());
-                pintaBoxes();
-                return; // Salir del método después de retirar el carro
+        if (!validacion) {
+            System.out.println("Entre");
+            iterator = modelo.getLlegadaRetrasados().iterator();
+            while (iterator.hasNext()) {
+                Carro carro = iterator.next();
+                if (carro.getCodigo() == codigo) {
+                    iterator.remove();
+                    JOptionPane.showMessageDialog(null, carro.toString());
+                    pintaBoxes();
+                    ultimaSalida = LocalDateTime.now();
+                    return; // Salir del método después de retirar el carro
+                }
             }
         }
+    }
+
+    public void conteoRegresivo() {
+        long tiempoEntrada, tiempoSalida;
+        tiempoEntrada = tiempoLlegada - (ultimaEntrada.until(LocalDateTime.now(), ChronoUnit.SECONDS));
+        tiempoSalida = tiempoServicio - (ultimaSalida.until(LocalDateTime.now(), ChronoUnit.SECONDS));
+        vista.cuentaEntradaLabel.setText(String.valueOf(tiempoEntrada));
+        vista.cuentaSalidaLabel.setText(String.valueOf(tiempoSalida));
+
     }
 
     public void pintaBoxes() {
@@ -125,6 +191,15 @@ public class Controller implements ActionListener {
                 i++;
             } else {
                 cuadrosLlegada1.setBackground(Color.white);
+                JPanel jPanel = cuadrosLlegada1;
+                Component[] components = jPanel.getComponents();
+
+                for (Component component : components) {
+                    if (component instanceof JLabel) {
+                        JLabel label = (JLabel) component;
+                        label.setText(String.valueOf(""));
+                    }
+                }
             }
         }
 
@@ -135,6 +210,15 @@ public class Controller implements ActionListener {
                 i++;
             } else {
                 cuadrosRetrasado.setBackground(Color.white);
+                JPanel jPanel = cuadrosRetrasado;
+                Component[] components = jPanel.getComponents();
+
+                for (Component component : components) {
+                    if (component instanceof JLabel) {
+                        JLabel label = (JLabel) component;
+                        label.setText(String.valueOf(""));
+                    }
+                }
             }
         }
     }
@@ -167,11 +251,32 @@ public class Controller implements ActionListener {
             }
             i++;
         }
+        i = 0;
+        iterator = modelo.getLlegadaRetrasados().iterator();
+        while (iterator.hasNext()) {
+            Carro carro = iterator.next();
+            if (i < cuadrosRetrasados.length) {
+                JPanel jPanel = cuadrosRetrasados[i];
+                Component[] components = jPanel.getComponents();
+
+                for (Component component : components) {
+                    if (component instanceof JLabel) {
+                        JLabel label = (JLabel) component;
+                        carro.setTiempo(LocalDateTime.now());
+                        long tiempoCarro = carro.getTiempo();
+                        label.setText(String.valueOf(tiempoCarro));
+                    }
+                }
+            }
+            i++;
+        }
 
     }
 
     public void revisarTiempoVehiculos() {
-        Iterator<Carro> iterator = modelo.getLlegada().iterator();
+        List<Carro> nuevaLista = (List<Carro>) modelo.getLlegada();
+
+        Iterator<Carro> iterator = nuevaLista.iterator();
         int i = 0;
         while (iterator.hasNext()) {
             Carro carro = iterator.next();
@@ -187,7 +292,6 @@ public class Controller implements ActionListener {
                 i++;
             }
         }
-
     }
 
     @Override
