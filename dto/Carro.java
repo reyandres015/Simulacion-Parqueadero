@@ -1,5 +1,6 @@
 package dto;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 
@@ -11,7 +12,7 @@ import java.time.temporal.ChronoUnit;
  *
  * @author Usuario
  */
-public class Carro {
+public class Carro implements Serializable {
 
     private final int codigo;
     private final LocalDateTime horaEntrada;
@@ -22,6 +23,10 @@ public class Carro {
     public Carro(LocalDateTime horaEntrada, int codigo) {
         this.codigo = codigo;
         this.horaEntrada = horaEntrada;
+    }
+
+    public void setMovimientos() {
+        this.movimientos++;
     }
 
     public void setTiempo(LocalDateTime horaActual) {
@@ -47,6 +52,10 @@ public class Carro {
 
     @Override
     public String toString() {
-        return "Carro{" + "codigo=" + codigo + "r" + "horaEntrada=" + horaEntrada + "r" + "movimientos=" + movimientos + "r" + "tiempo=" + tiempo + "r" + "valor= $" + valor + '}';
+        return "Carro{\n" + "Codigo=" + codigo
+                + "\nHora de Entrada=" + horaEntrada.toLocalTime()
+                + "\nMovimientos=" + movimientos
+                + "\nTiempo de Parqueo=" + tiempo
+                + "\nValor a Pagar: $" + valor + '}';
     }
 }
